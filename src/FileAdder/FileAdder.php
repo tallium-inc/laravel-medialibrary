@@ -294,11 +294,39 @@ class FileAdder
      * @throws FileDoesNotExist
      * @throws FileCannotBeAdded
      */
-    public function toCollection(string $collectionName = 'default', string $diskName = '')
+    public function toCollection(string $collectionName = 'default', string $diskName = '', bool $filesystem = true)
     {
-        return $this->toCollectionOnDisk($collectionName, $diskName);
+        return $this->toCollectionOnDisk($collectionName, $diskName, $filesystem);
     }
 
+    /**
+     * Store collection  to database.
+     * @param string $collectionName
+     * @param string $diskName
+     * @return mixed
+     */
+    protected function storeCollection(string $collectionName = 'default', string $diskName = '')
+    {
+
+        $mediaClass = config('laravel-medialibrary.media_model');
+        $media = new $mediaClass();
+
+        $media->name = $this->mediaName;
+        $media->file_name = $this->fileName;
+        $media->disk = $this->determineDiskName($diskName);
+        $media->collection_name = $collectionName;
+        
+        $media->size = filesize($this->pathToFile);
+        $media->custom_properties = $this->customProperties;
+        $media->manipulations = [];
+
+        $media->fill($this->properties);
+
+        $this->subject->media()->save($media);
+
+        return $media;
+
+    }
     /**
      * @param string $collectionName
      * @param string $diskName
@@ -308,38 +336,20 @@ class FileAdder
      * @throws FileCannotBeAdded
      * @throws \Spatie\MediaLibrary\Exceptions\FileCannotBeAdded
      */
-    public function toCollectionOnDisk(string $collectionName = 'default', string $diskName = '')
+    public function toCollectionOnDisk(
+        string $collectionName = 'default',
+        string $diskName = '',
+        bool $filesystem = true
+    )
     {
-        if (! $this->subject->exists) {
-            throw FileCannotBeAdded::modelDoesNotExist($this->subject);
+        if ($filesystem) {
+            $media = $this->storeCollection($collectionName, $diskName);
+
+            $this->filesystem->add($this->pathToFile, $media, $this->fileName);
+
+        } else {
+            $media = $this->storeCollection($collectionName, $diskName);
         }
-
-        if (! is_file($this->pathToFile)) {
-            throw FileCannotBeAdded::fileDoesNotExist($this->pathToFile);
-        }
-
-        if (filesize($this->pathToFile) > config('laravel-medialibrary.max_file_size')) {
-            throw FileCannotBeAdded::fileIsTooBig($this->pathToFile);
-        }
-
-        $mediaClass = config('laravel-medialibrary.media_model');
-        $media = new $mediaClass();
-
-        $media->name = $this->mediaName;
-        $media->file_name = $this->fileName;
-        $media->disk = $this->determineDiskName($diskName);
-
-        $media->collection_name = $collectionName;
-
-        $media->size = filesize($this->pathToFile);
-        $media->custom_properties = $this->customProperties;
-        $media->manipulations = [];
-
-        $media->fill($this->properties);
-
-        $this->subject->media()->save($media);
-
-        $this->filesystem->add($this->pathToFile, $media, $this->fileName);
 
         if (! $this->preserveOriginal) {
             unlink($this->pathToFile);

@@ -60,6 +60,20 @@ class IntegrationTest extends TestCase
         $this->assertEquals($collectionName, $media->collection_name);
     }
 
+    /**
+     * @test
+     */
+    public function it_can_save_collection_without_filesystem()
+    {
+        $collectionName = 'images';
+
+        $media = $this->testModel
+            ->addMedia($this->getTestJpg())
+            ->toCollection($collectionName, '', false);
+
+        $this->assertEquals($collectionName, $media->collection_name);
+    }
+
     /** @test */
     public function it_can_move_the_original_file_to_the_medialibrary()
     {
